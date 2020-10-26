@@ -1,0 +1,18 @@
+#/bin/bash
+
+# set this so if upload fails,
+# it won't delete the recording.
+set -e
+
+# Ensure the 'uploaded' directory exists
+uploaded_directory=/var/spool/asterisk/uploaded
+mkdir -p $uploaded_directory
+chown asterisk:asterisk $uploaded_directory
+chmod 755 $uploaded_directory
+
+for path in $(find /var/spool/asterisk/voicemail/{{country_iso_code}}/ -type f -name "*.wav" | grep wav); do
+        filename=$(basename -s ".wav" $path)
+        s3path="s3://{{s3_demo_audio}}/voicemails/{{country_iso_code}}/$filename.wav"
+        outcome=$(/usr/bin/aws s3 cp "$path" "$s3path" --region {{s3_aws_region}})
+        mv $path $uploaded_directory/{{country_iso_code}}/$(basename $path)
+done

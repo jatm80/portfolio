@@ -1,0 +1,23 @@
+---
+# This variable must be consistent with the 's3_audio_bucket' variable in terraform
+s3_demo_audio:   this-project-media-stg
+region:                 ap-southeast-2
+
+# opensips value must be consistent with the host in route53.tf (terraform)
+opensips:               opensips1.project.global
+opensips2:              opensips1.project.global
+opensips_webrtc_1:      opensips-webrtc1.project.global
+opensips_webrtc_2:      opensips-webrtc1.project.global
+
+wss_endpoint:           766396e0bc5ec0861534e28a036be33c.stg.project.thisglobal.net
+
+uat: false
+# Custom Dial Plan
+
+exten_test_rule1:  |
+      same => n,GotoIf($["${EXTEN}" = "356565767676"]?project-dev,${EXTEN},1)
+
+exten_test_rule2: |
+      [project-dev]
+      exten => _[+0-9a-zA-Z]X.,1(start),Verbose(1, Inbound call: From ${CALLERID(num)} to ${EXTEN}|${SIP_HEADER(To)})
+      same  => n,Stasis(bar,AU)

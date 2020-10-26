@@ -1,0 +1,3 @@
+# tasks file for asterisk
+---
+- include_tasks: asterisk16.yml

@@ -1,0 +1,45 @@
+#!/usr/bin/php -q
+<?php
+set_time_limit(64500);
+require('phpagi.php');
+ob_implicit_flush(true);
+error_reporting(E_ALL);
+
+$agi = new AGI();
+$agi_uniqueid= $agi->request[agi_uniqueid];
+$agi_extension= $agi->request[agi_extension];
+$agi->noop("agi_uniqueid=$agi_uniqueid");
+$agi->noop("agi_extension=$agi_extension");
+$finename = $agi_extension . '_' . $agi_uniqueid;
+$agi->noop("finename=$finename");
+$trie=0;
+
+$agi->answer();
+$agi->exec('Monitor',"wav,$finename,bi");
+$agi->stream_file("MX/Recorded-mono",'',0000);
+do {
+	$result = $agi->get_data('MX/Code-mono',0, 4);
+	$digits=$result['result'];
+	$tries++;
+} while( strlen($digits) < 4 and $tries < 4);
+
+#if( is_numeric($digits) and strlen($digits) == 4 and $digits <> 0) {
+if( is_numeric($digits) and strlen($digits) == 4 ) {
+
+	$agi->set_variable("CDR(ConnectCode)",$digits);
+	$agi->set_variable("CDR(called)",$agi_extension);
+	$agi->stream_file("MX/Connecting-mono");
+
+	switch ($agi_extension) {
+            case {{providers[default_provider]['did1']}}:
+                $agi->exec_dial("SIP/{{default_provider}}/{{providers[default_provider]['dst1']}},,A(MX/Deliver-mono)");
+                break;
+            case {{providers[default_provider]['did2']}}:
+                $agi->exec_dial("SIP/{{default_provider}}/{{providers[default_provider]['dst2']}},,A(MX/Deliver-mono)");
+                break;
+	    default:
+		# Softphone Miguel
+		$agi->exec_dial("SIP/{{default_provider}}/{{providers[default_provider]['dst1']}},,A(MX/Deliver-mono)");
+}
+ }
+?>

@@ -1,0 +1,311 @@
+- action: ec2_metadata_facts
+
+- name: required tools and libraries
+  action: apt  name={{ item }} state=present
+  with_items:
+    - php-cli
+    - odbcinst
+    - unixodbc
+    - unixodbc-dev
+    - python-mysqldb
+    - subversion
+    - lame
+    - sox
+    - git
+    - curl
+    - wget 
+    - libnewt-dev 
+    - libssl-dev 
+    - libsrtp-dev
+    - libncurses5-dev
+    - libsqlite3-dev
+    - build-essential
+    - libjansson-dev
+    - libxml2-dev
+    - uuid-dev
+    - ffmpeg
+    - libedit-dev
+
+
+- name: Ensure group asterisk exists
+  group:
+    name: asterisk
+    state: present
+
+- name: add user
+  shell: useradd -r -d /var/lib/asterisk -g asterisk asterisk
+  ignore_errors: true
+
+- name: mod user
+  shell: usermod -aG audio,dialout asterisk     
+
+- name: Download & extract mysql-connector-odbc-5.3.2-linux-debian6.0-x86-64bit.tar.gz
+  unarchive:
+    src: http://mirror.lug.udel.edu/pub/mysql/Connector-ODBC/5.3/mysql-connector-odbc-5.3.4-linux-debian6.0-x86-64bit.tar.gz
+    dest: /opt
+    remote_src: yes
+
+- name: Copy mysql-odbc drivers to /usr/lib/x86_64-linux-gnu/odbc/
+  synchronize:
+    src: /opt/mysql-connector-odbc-5.3.2-linux-debian6.0-x86-64bit/lib/
+    dest: /usr/lib/x86_64-linux-gnu/odbc
+    recursive: yes
+    rsync_opts:
+        - "--chown=root:root" 
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Copy /etc/odbc.ini 
+  template:
+    src: odbc.ini.j2
+    dest: /etc/odbc.ini
+
+- name: Copy /etc/odbcinst.ini 
+  copy:
+    src: odbcinst.ini
+    dest: /etc/odbcinst.ini
+
+- name: Load odbc config
+  shell: odbcinst -i -s -l -f /etc/odbc.ini ;  odbcinst -s -q ; 
+
+#- name: Load odbc config2
+#  shell:  isql -vvvv asterisk-connector
+
+- name: Check if Asterisk src exists
+  stat:
+      path: /usr/src/asterisk-16.8.0
+  register: asterisksrc
+
+
+- name: Download Asterisk
+  unarchive:
+    src: "http://downloads.asterisk.org/pub/project/asterisk/asterisk-16.8.0.tar.gz"
+    dest: /usr/src/
+    remote_src: yes
+  when: not asterisksrc.stat.exists #and asterisksrc.stat.isdir 
+  
+#- name: Install Asterisk Prereq mp3
+#  shell: ./contrib/scripts/get_mp3_source.sh chdir=/usr/src/asterisk-16.8.0/
+#  ignore_errors: yes 
+
+#- name: Install Asterisk Prereq
+#  expect:
+#     command: /usr/src/asterisk-16.8.0/contrib/scripts/install_prereq install
+#     responses: 
+#      'Do you want to continue\? \[Y/n\]': 'y'
+#     echo: yes 
+  
+- name: Configure Asterisk
+  shell: ./configure --libdir=/usr/lib --with-jansson-bundled --with-pjproject-bundled --with-srtp chdir=/usr/src/asterisk-16.8.0/
+
+- name: Create menuselect.makeopts
+  command: make menuselect.makeopts chdir=/usr/src/asterisk-16.8.0
+  
+
+- name: Do a bit of menuselect configuration
+  command: menuselect/menuselect --disable MOH-OPSOUND-WAV --disable MOH-OPSOUND-GSM --disable MOH-OPSOUND-G722 --enable res_musiconhold --enable res_srtp chdir=/usr/src/asterisk-16.8.0
+
+- name: Make
+  command: make -j2 chdir=/usr/src/asterisk-16.8.0
+
+- name: Uninstall previous version
+  command: make uninstall-all chdir=/usr/src/asterisk-16.8.0
+  
+
+- name: Install
+  command: make install chdir=/usr/src/asterisk-16.8.0
+
+- name: Copy codec_g729.so 
+  synchronize:
+    src: codec_g729_asterisk16.so
+    dest: /usr/lib/asterisk/modules/codec_g729.so
+    delete: yes
+    recursive: yes
+    rsync_opts:
+        - "--chown=asterisk:asterisk"  
+
+- name: Install initscripts
+  command: make config chdir=/usr/src/asterisk-16.8.0
+
+- name: Install config cripts
+  command: make samples chdir=/usr/src/asterisk-16.8.0
+
+- name: Copy init_d_asterisk
+  synchronize:
+    src: init_d_asterisk
+    dest: /etc/init.d/asterisk
+    delete: yes
+    recursive: yes
+    rsync_opts:
+        - "--chown=root:root" 
+
+- name: setting ulimit for asterisk
+  synchronize:
+    src: asterisk.limits.conf
+    dest: /etc/security/limits.d/asterisk.limits.conf
+    delete: yes
+    recursive: yes
+    rsync_opts:
+        - "--chown=root:root"         
+
+- name: Copy asterisk files
+  synchronize:
+     src: roles/asterisk/files/conf16/
+     dest: /etc/asterisk/
+     delete: no
+     existing_only: no
+     recursive: yes
+     rsync_opts:
+        - "--chown=asterisk:asterisk"
+
+- name: Copy asterisk files
+  synchronize:
+     src: roles/asterisk/files/scripts/
+     dest: /etc/asterisk/scripts
+     delete: yes
+     recursive: yes
+     rsync_opts:
+        - "--chown=asterisk:asterisk"  
+
+- name: Create a directory /etc/asterisk/keys
+  file:
+    path: /etc/asterisk/keys
+    state: directory
+    mode: '0755'        
+
+- name: Copy asterisk files
+  template:
+     src: keys/{{asp_env}}/DTLS-SRTP-Certs.sh.j2
+     dest: /etc/asterisk/keys/DTLS-SRTP-Certs.sh
+     force: yes
+     owner: asterisk
+     group: asterisk
+     mode: 0644
+
+- name: Template Asterisk
+  template:
+    src: '{{item.src}}'
+    dest: '{{item.dest}}'
+    owner: asterisk
+    group: asterisk
+    mode: 0644
+  with_items:
+      - { src: 'conf16/sip.conf.j2', dest: '/etc/asterisk/sip.conf' }
+      - { src: 'conf16/extensions.conf.j2', dest: '/etc/asterisk/extensions.conf' }
+      - { src: 'conf16/eip.conf.j2', dest: '/etc/asterisk/eip.conf' }
+      - { src: 'conf16/manager.conf.j2', dest: '/etc/asterisk/manager.conf' }
+
+- name: Add Custom Dialplan Rule 1
+  blockinfile:
+    path: /etc/asterisk/extensions.conf
+    marker: "; {mark} Ansible_Rule_1"
+    insertafter: ";Ansible_Rule_1"
+    state: present
+    block: |
+        {{ exten_test_rule1 }} 
+        
+- name: Add Custom Dialplan Rule 2
+  blockinfile:
+    path: /etc/asterisk/extensions.conf
+    marker: "; {mark} Ansible_Rule_2"
+    insertafter: ";Ansible_Rule_2"
+    state: present
+    block: |
+        {{ exten_test_rule2 }}
+
+- name: Template Asterisk
+  template:
+    src: '{{item.src}}'
+    dest: '{{item.dest}}'
+    owner: asterisk
+    group: asterisk
+    mode: 0777
+  with_items:
+      - { src: 'scripts/s3uploadrecordings.sh.j2', dest: '/etc/asterisk/scripts/s3uploadrecordings.sh' }
+      - { src: 'scripts/s3uploadvoicemail.sh.j2', dest: '/etc/asterisk/scripts/s3uploadvoicemail.sh' }      
+
+- name: chown etc 
+  shell: chown -R asterisk.asterisk /etc/asterisk
+  
+- name: chown var 
+  shell: chown -R asterisk.asterisk /var/lib/asterisk
+
+- name: chown log 
+  shell: chown -R asterisk.asterisk /var/log/asterisk
+
+- name: Create /var/spool/asterisk/uploaded/{{country_iso_code}}
+  file: path=/var/spool/asterisk/uploaded/{{country_iso_code}} state=directory owner=asterisk group=asterisk mode=755
+
+- name: Create /var/spool/asterisk/monitor/{{country_iso_code}}
+  file: path=/var/spool/asterisk/monitor/{{country_iso_code}} state=directory owner=asterisk group=asterisk mode=755
+
+- name: Create /var/spool/asterisk/recording/{{country_iso_code}}
+  file: path=/var/spool/asterisk/recording/{{country_iso_code}} state=directory owner=asterisk group=asterisk mode=755
+
+- name: Create /var/spool/asterisk/voicemail/{{country_iso_code}}
+  file: path=/var/spool/asterisk/voicemail/{{country_iso_code}} state=directory owner=asterisk group=asterisk mode=755
+
+- name: chown spool 
+  shell: chown -R asterisk.asterisk /var/spool/asterisk
+
+- name: chown usr 
+  shell: chown -R asterisk.asterisk /usr/lib/asterisk   
+      
+# - name: Install initscripts
+#   command: make samples chdir=/usr/src/asterisk-16.8.0
+
+- name: Install logrotate
+  command: make install-logrotate chdir=/usr/src/asterisk-16.8.0
+
+- name  : remove user's crontab
+  shell : crontab -r
+
+- cron: name="sync custom prompts" job="aws s3 sync s3://{{s3_demo_audio}}/sounds/{{country_iso_code}}/prompts/ /var/lib/asterisk/sounds/prompts/{{country_iso_code}}/ &&  /etc/asterisk/scripts/convert-to-ulaw.sh /var/lib/asterisk/sounds/prompts/{{country_iso_code}}"
+- cron: name="sync default sounds" job="aws s3 sync s3://{{s3_demo_audio}}/sounds/{{country_iso_code}}/asterisk/ /var/lib/asterisk/sounds/prompts/ &&  /etc/asterisk/scripts/convert-to-ulaw.sh /var/lib/asterisk/sounds/prompts"
+- cron: name="sync moh" job="aws s3 sync s3://{{s3_demo_audio}}/sounds/{{country_iso_code}}/moh/ /var/lib/asterisk/moh/"
+
+- cron: name="asterisk-connector" minute="*/2" job="echo 'select 1' | isql -v asterisk-connector"
+
+- cron: name="clean cel table" minute="30" hour="10" job="echo 'delete from cel where eventtime <= CURRENT_DATE() - INTERVAL 1 MONTH' | isql -v asterisk-connector"
+- cron: name="clean cdr table" minute="00" hour="10" job="echo 'delete from cdr where calldate <= CURRENT_DATE() - INTERVAL 1 MONTH' | isql -v asterisk-connector"
+
+- cron: name="clean /var/spool/asterisk/voicemail lock" minute="*/20" job="find /var/spool/asterisk/voicemail -name "*.lock" -mmin +120 -exec rm -Rf -- {} \;"
+- cron: name="clean /var/spool/asterisk/monitor/" minute="20" hour="4,15" job="find /var/spool/asterisk/monitor/ -mtime +1 -type f -exec rm -Rf -- {} \;"
+- cron: name="clean /var/spool/asterisk/uploaded/" minute="25" hour="4,15" job="find /var/spool/asterisk/uploaded/ -mtime +7 -type f -exec rm -Rf -- {} \;"
+
+- cron: name="clean tmp" minute="17" hour="3" job="find /tmp/ -mtime +3 -exec rm -Rf -- {} \;"
+- cron: name="/etc/asterisk/scripts/s3uploadrecordings.sh" job="/usr/bin/flock -w 0 /etc/asterisk/scripts/s3uploadrecordings.lock /etc/asterisk/scripts/s3uploadrecordings.sh"
+- cron: name="/etc/asterisk/scripts/s3uploadvoicemail.sh" job="/usr/bin/flock -w 0 /etc/asterisk/scripts/s3uploadvoicemail.lock /etc/asterisk/scripts/s3uploadvoicemail.sh"
+
+- name: Copy .ssh/id_rsa.pub to /root
+  copy:
+    src: id_rsa.pub
+    dest: /root/.ssh/id_rsa.pub
+    mode: 0644
+
+- name: Copy .ssh/id_rsa to /root
+  copy:
+    content: "{{private_key_content}}"
+    dest: /root/.ssh/id_rsa
+    mode: 0600
+
+- name: Enable asterisk.service
+  systemd:
+    name: asterisk.service
+    daemon_reload: yes
+    enabled: yes
+
+- name: restart asterisk
+  shell: /etc/init.d/asterisk restart
+
+#- name: reload sip chan
+#  shell: asterisk -rx "sip reload"
+
+#- name: reload dialplan
+#  shell: asterisk -rx "dialplan reload"
+
+#- name: reload manager
+#  shell: asterisk -rx "manager reload"  
+
+#- name: reload modules
+#  shell: asterisk -rx "module reload"  
+

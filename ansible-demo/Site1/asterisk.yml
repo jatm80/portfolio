@@ -1,0 +1,8 @@
+---
+- hosts: asterisk
+  roles:
+      - common
+      - database
+      - asterisk
+      - sipsumo
+

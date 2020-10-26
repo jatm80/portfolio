@@ -1,0 +1,20 @@
+[asterisk-connector]
+Description = MySQL connection to project database
+Driver  = MySQL
+Database = {{mysql_asterisk_db}}
+Port    = 3306
+Server  = {{mysql_host}}
+Socket  = /var/lib/mysql/mysql.sock
+User={{mysql_asterisk_user}}
+Password={{mysql_asterisk_pw}}
+
+
+[asterisk-logs]
+Description = MySQL connection to project database
+Driver  = MySQL
+Database  = {{mysql_asterisk_db}}
+Server  = {{mysql_host}}
+Port    = 3306
+Socket  = /var/lib/mysql/mysql.sock
+User={{mysql_asterisk_user}}
+Password={{mysql_asterisk_pw}}

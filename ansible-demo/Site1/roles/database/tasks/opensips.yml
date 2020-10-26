@@ -1,0 +1,36 @@
+---
+
+- name: Copy database-opensips-tables.sql
+  copy:
+    src: database-opensips-tables.sql
+    dest: /opt/databases/database-opensips-tables.sql
+
+# tasks file for databases
+
+- name: Create opensips database
+  mysql_db:
+    name: "{{ mysql_opensips_db }}"
+    state: present
+    login_host: "{{mysql_host}}"
+    login_password: "{{mysql_pw}}"
+    login_user: "{{mysql_user}}"
+
+- name: Create opensips user
+  mysql_user:
+    name: "{{ mysql_opensips_user }}"
+    password: "{{ mysql_opensips_pw }}"
+    host: "%"
+    priv: '{{ mysql_opensips_db }}.*:ALL/opensips.*:ALL'
+    state: present
+    login_host: "{{mysql_host}}"
+    login_password: "{{mysql_pw}}"
+    login_user: "{{mysql_user}}"
+
+- name: Import database opensips
+  mysql_db:
+    state: import
+    name: "{{mysql_opensips_db}}"
+    target: /opt/databases/database-opensips-tables.sql
+    login_host: "{{mysql_host}}"
+    login_user: "{{mysql_user}}"
+    login_password: "{{mysql_pw}}"

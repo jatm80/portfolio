@@ -1,0 +1,20 @@
+- name: Download & extract SumoCollector_linux_amd64.sh
+  get_url:
+    url: https://collectors.au.sumologic.com/rest/download/linux/64
+    dest: /root/SumoCollector_linux_amd64.sh
+    mode: 0755
+
+- name: Copy sumo-sources.json.j2 to /etc
+  template:
+    src: sumo-sources.json.j2
+    dest: /etc/sumo-sources.json
+    mode: 0644
+    owner: root
+    group: root
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Install SumoCollector
+  shell: /root/SumoCollector_linux_amd64.sh -q -VskipRegistration=true -Vephemeral=true -Vcollector.name=Project-ASG -VsyncSources=/etc/sumo-sources.json -Vsumo.accessid={{sumo_accessid}} -Vsumo.accesskey={{sumo_accesskey}}
+
+- name: Start SumoCollector
+  shell: /opt/SumoCollector/collector start

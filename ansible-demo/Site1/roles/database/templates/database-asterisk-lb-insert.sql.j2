@@ -1,0 +1,5 @@
+INSERT INTO load_balancer (group_id,dst_uri,resources,probe_mode)
+SELECT * FROM (SELECT 1,'sip:1234@{{ ansible_ec2_local_ipv4 }}','channels=200',2) AS tmp
+WHERE NOT EXISTS (
+    SELECT dst_uri FROM load_balancer WHERE dst_uri = 'sip:1234@{{ ansible_ec2_local_ipv4 }}'
+) LIMIT 1;

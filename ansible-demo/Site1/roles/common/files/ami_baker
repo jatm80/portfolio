@@ -1,0 +1,65 @@
+#!/bin/bash
+#
+# This script needs these IAM permissions:
+#            "Action": [
+#                "ec2:CreateSnapshot",
+#                "ec2:CreateImage"
+#                "ec2:DescribeImages"
+#            ],
+# 
+# Use: ./ami_baker <show|apply>
+# 
+# Creator:  Miguel Oyarzo
+#
+
+ZONE=$(ec2metadata --availability-zone)
+REGION=${ZONE::-1}
+instance_id=$(ec2metadata --instance-id)
+ami_name=$(aws ec2 describe-instances --instance-id $instance_id --region $REGION --query 'Reservations[].Instances[].Tags[?Key==`Name`].Value' --output text)
+drive_attached=""
+
+function wait_for_ami_finished {
+        ami_name=$1
+        baked_image_id=$2
+        while true; do
+                echo -e "\t\tWaiting for $ami_name ($baked_image_id) to become available..."
+                AMI_IS_AVAILABLE=$(aws ec2 describe-images --region $REGION --filters Name=name,Values=$ami_name --query 'Images[*].{ID:State}')
+                if [[ $AMI_IS_AVAILABLE =~ "available" ]]; then
+                        echo -e "\e[32m$baked_image_id ($ami_name) done\e[0m"
+                        break;
+                fi
+                sleep 12
+        done
+}
+
+
+INDEX=1
+while true; do
+                AMI_NAME="$ami_name-$INDEX"
+                AMI_EXIST=$(aws ec2 describe-images --region $REGION --filters Name=name,Values=$AMI_NAME --query 'Images[*].{ID:Name}')
+                if [[ ! -z $AMI_EXIST ]] && [[ $AMI_EXIST != '[]' ]]; then
+                        echo -e "\tTry #$INDEX: $AMI_NAME is already in use"
+                        INDEX=$((INDEX+=1))
+                else
+                        if [[ $1 == "apply" ]]; then
+                                # Stop some service and move directories in $instance_id
+                                echo -e "\tOK!, $AMI_NAME is available"
+                                if [[ $drive_attached == "EBS" ]]; then
+                                	echo -e "\tInstance with attached EBS!"
+                                baked_image_id=`aws ec2 create-image  --instance-id $instance_id --name $AMI_NAME --no-reboot --region $REGION --output text --block-device-mappings "[{\"DeviceName\": \"/dev/sdh\",\"NoDevice\":\"\"}]" 2>&1`
+                                else
+                                	baked_image_id="$( aws ec2 create-image  --instance-id $instance_id --name $AMI_NAME --no-reboot --region $REGION --output text 2>&1)"
+                                fi
+                                echo -e "\e[32mBaking image $baked_image_id ($AMI_NAME) in $REGION\e[0m"
+                                {
+                                wait_for_ami_finished $AMI_NAME $baked_image_id
+                                echo ""
+                                } &
+                        else
+                                echo -e "\e[32mOK! $AMI_NAME is available. This script will bake the AMI $AMI_NAME from $instance_id\e[0m"
+                        fi
+                        break;
+                fi
+done
+
+

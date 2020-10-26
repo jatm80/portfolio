@@ -1,0 +1,39 @@
+- name: required tools and libraries
+  action: apt  name={{ item }} state=present
+  with_items:
+    - libpcap-dev
+
+- name: Stop sipsumo
+  systemd: 
+    name: sipsumo
+    state: stopped
+  ignore_errors: true  
+
+- name: Remove old sipsumo
+  shell: dpkg -r sipsumo-0.1
+  ignore_errors: true
+
+- name: Copy sipsumo-0.1.deb 
+  copy:
+    src: sipsumo-0.1.deb
+    dest: /root/sipsumo-0.1.deb   
+
+- name: Install .deb package
+  apt:
+    deb: /root/sipsumo-0.1.deb
+
+- name: Copy config.toml.j2 to /opt/sipsumo/
+  template:
+    src: config.toml.j2
+    dest: /opt/sipsumo/config.toml
+    mode: 0644
+    owner: root
+    group: root
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Start sipsumo
+  systemd: 
+    name: sipsumo
+    state: restarted
+    daemon_reload: yes
+    enabled: yes

@@ -1,0 +1,11 @@
+[Unit]
+Description=HealthChecker
+After=network.target
+
+[Service]
+Restart=always
+RestartSec=10
+ExecStart=/bin/sh -c '/opt/healthcheck/This.Project.HealthCheck 2>&1 >> /dev/null'
+Environment='ASPNETCORE_ENVIRONMENT={{asp_env}}'
+[Install]
+WantedBy=default.target

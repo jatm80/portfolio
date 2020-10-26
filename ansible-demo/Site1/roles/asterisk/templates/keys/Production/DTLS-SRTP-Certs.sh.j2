@@ -1,0 +1,6 @@
+#!/bin/bash
+
+## check in this.project.terraform project or in route53 for the correct websocket address
+
+/usr/src/asterisk-16.8.0/contrib/scripts/ast_tls_cert -C {{wss_endpoint}} -O "{{wss_endpoint}}" -d /etc/asterisk/keys
+# use any password i.e wEaDASZ6pI8Lg9nYnni+SLbAaMu8C5aOD6Mqxe8wJOoA9

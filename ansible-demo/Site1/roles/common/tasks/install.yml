@@ -1,0 +1,88 @@
+    - action: ec2_metadata_facts
+
+    - name: Set timezone to UTC
+      timezone:
+          name: Etc/UTC
+
+    - name: Enable NTP
+      service: name=systemd-timesyncd enabled=yes
+      tags: ntp
+
+    - name: tools and dependencies
+      action: apt  name={{ item }} state=present update_cache=yes
+      with_items:
+        - python-pip
+        - awscli
+        - sipsak
+        - ngrep
+        - s3cmd
+        - python-mysqldb
+        - mysql-client
+        - ruby2.3
+        - dnsmasq
+
+    - name: Copy dnsmasq to /etc/default/dnsmasq
+      copy:
+        src: dnsmasq
+        dest: /etc/default/dnsmasq
+        mode: 0755     
+
+    - name: Copy dnsmasq.j2 to /etc/dnsmasq.d/local-dns
+      template:
+        src: dnsmasq.j2
+        dest: /etc/dnsmasq.d/local-dns.conf     
+
+    - name: restart dnsmasq
+      systemd:
+        state: restarted
+        daemon_reload: yes
+        name: dnsmasq    
+
+    - name: Upgrade pip
+      pip:
+        name: pip
+        extra_args: --upgrade
+
+    - name: install python dependencies
+      action: pip name={{ item }}
+      with_items:
+        - boto3
+        - psutil
+        - pydub
+        - slackweb
+        - pika
+        - asterisk-ami
+        - pexpect
+
+# Directories
+    - file:
+        path: /opt
+        state: directory
+        mode: 0755
+
+    - file:
+        path: /opt/databases
+        state: directory
+        mode: 0755
+
+
+    - name: copy ami_baker
+      copy:
+        mode: 0755
+        src: ami_baker
+        dest: /home/ubuntu/ami_baker
+
+    - name: Install aws codedeploy agent
+      get_url:
+        url: https://aws-codedeploy-{{ansible_ec2_placement_region}}.s3.amazonaws.com/latest/install
+        dest: /tmp/codedeploy_install
+        mode: 0744    
+
+    - name: Install aws codedeploy agent
+      shell: sudo /tmp/codedeploy_install auto
+
+    - name: start code deploy agent
+      systemd:
+        state: restarted
+        daemon_reload: yes
+        name: codedeploy-agent     

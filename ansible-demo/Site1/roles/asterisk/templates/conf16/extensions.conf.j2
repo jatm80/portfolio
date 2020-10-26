@@ -1,0 +1,54 @@
+[general]
+static=yes
+writeprotect=no
+autofallthrough=yes
+extenpatternmatchnew=yes
+clearglobalvars=no
+
+[globals]
+CONSOLE=Console/dsp
+#include extensions_globals.conf
+
+[cctester-legb]
+exten => s,1,Answer()
+    same => n,NoCDR()
+    same => n,Read(digito,,1)
+    same => n,SendDtmf(*9)
+    same => n,Wait(1)
+    same => n,SendDtmf(*99)
+    same => n,Wait(1)
+    same => n,SendDtmf(99)
+    same => n,Hangup()
+
+[project]
+exten => _[+0-9a-zA-Z]X.,1,NoOp(Inbound call: From ${CALLERID(num)} to ${EXTEN}|${SIP_HEADER(To)})
+same => n,Set(CHANNEL(userfield)=${EXTEN}_${CALLERID(num)}_${UNIQUEID})
+
+same => n,GotoIf($["${REGEX("468971537$" ${CALLERID(num)})}" = "1"]?cctester-legb,s,1)
+same => n,GotoIf($["${REGEX("423935093$" ${CALLERID(num)})}" = "1"]?cctester-legb,s,1)
+same => n,GotoIf($["${REGEX("420251449$" ${CALLERID(num)})}" = "1"]?cctester-legb,s,1)
+
+;Ansible_Rule_1
+
+same => n,Goto(project-generic,${EXTEN},start)
+
+[project-generic]
+exten => _[+0-9a-zA-Z]X.,1(start),Verbose(1, Inbound call: From ${CALLERID(num)} to ${EXTEN}|${SIP_HEADER(To)})
+same => n,Set(pai=${SIP_HEADER(P-Asserted-Identity)})
+same => n,Set(pai=${CUT(pai,@,1)})
+same => n,Set(pai=${CUT(pai,:,2)})
+same => n,CELGenUserEvent(P-Asserted-Id,${pai})
+same => n,Set(BL=${IF($[ "${CALLERID(num)}" = "anonymous" ]?${pai}:${CALLERID(num)} )})
+same => n,GotoIf($["${ODBC_BLACKLIST(${BL},${BL:0:-1},${BL:0:-2},${BL:0:-3},${BL:0:-4})}" = "1"]?blacklisted)
+same => n,Stasis(app,AU)
+same => n(done),Verbose(1,End call handling. Extension ${EXTEN} CallID: ${UNIQUEID})
+same => n(blacklisted),Hangup()
+
+;[local]
+;exten => _[+0-9a-zA-Z]X.,1(start),Verbose(1, Local channel answered)
+;same => n,Answer()
+;same => n,Verbose(1, Spying on virtual number ${EXTEN} ...)
+;same => n,ExtenSpy(${EXTEN}@project-generic,qSEo) # Spy on the inbound virtual number
+;same => n,Verbose(1, Waiting 20 seconds for eagi to complete processing channel ${EXTEN} ...)
+;same => n,Wait(20) # give EAGI sometimes to finish processing
+;same => n,Verbose(1, Completed spying on channel ${EXTEN} ...)

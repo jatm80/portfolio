@@ -1,0 +1,7 @@
+---
+- hosts: opensips
+  roles:
+    - common
+    - database
+    - opensips
+    - sipsumo

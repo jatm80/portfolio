@@ -1,0 +1,44 @@
+{
+	"name": "recordings",
+	"i18n": {
+		"de-DE": {
+			"label": "recordings",
+			"description": "Mit dieser App können Sie den Inhalt Ihrer recording schnell und bequem verwalten. Außerdem können Sie mit dieser App auch remote auf Ihre recordings zugreifen sowie EVN-Details herunterladen, abrufen, anzeigen und vieles mehr. Ihre Administratoren können nach Account, Nummer oder recording filtern, nach bestimmten Datumsbereichen suchen, Spalten sortieren und/oder recording-Medien abspielen und herunterladen. Administratoren können alle in einem Account oder einer recording befindlichen recordings auswählen, alte recordings aus ganzen recordingen oder Accounts löschen, den recording-Status ändern und/oder recordings in eine andere recording kopieren.",
+			"extended_description": "",
+			"features": [
+				"recording abspielen",
+				"recording herunterladen",
+				"recording-Details anzeigen"
+			]
+		},
+		"en-US": {
+			"label": "recordings",
+			"description": "This app allows you to quickly and easily manage the contents of your recording box. In addition, it allows you to access your recordings remotely, as well as download, delete, retrieve, view CRD details and more. Your admins can filter by account, number, or recording box, search by date range, sort columns, and/or play and download recording media. Admins may select all recordings in an account or recording box, bulk delete old recordings by recording box or account, change recording statuses and/or copy recordings to another recording box.",
+			"extended_description": "",
+			"features": [
+				"Play recording",
+				"Download recording",
+				"View recording details"
+			]
+		}
+	},
+	"tags": [
+		"admin"
+	],
+	"icon": "Recording_app.png",
+	"api_url": "http://10.26.0.41:8000/v2",
+	"author": "2600Hz",
+	"version": "1.0",
+	"license": "-",
+	"price": 0,
+	"screenshots": [
+		"recordings.png",
+		"recordings2.png"
+	],
+	"urls": {
+		"documentation": "{documentation_url}",
+		"howto": "{howto_video_url}"
+	},
+	"phase": "gold",
+	"pvt_type": "app"
+}

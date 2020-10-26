@@ -1,0 +1,9 @@
+---
+# tasks file for sipsumo
+
+- include_tasks: sumo-opensips.yml
+  when: inventory_hostname in groups['opensips']
+
+
+- include_tasks: sumo-asterisk.yml
+  when: inventory_hostname in groups['asterisk']

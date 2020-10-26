@@ -1,0 +1,6 @@
+---
+- hosts: opensips-webrtc
+  roles:
+    - common
+    - opensips-webrtc
+    - sipsumo

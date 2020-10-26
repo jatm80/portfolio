@@ -1,0 +1,18 @@
+{
+  "api.version": "v1",
+  "sources": [
+    {
+      "sourceType": "LocalFile",
+      "name": "{{sumo_envprefix}}-{{sumo_env}}-ASG-{{ansible_hostname}}",
+      "pathExpression": "/var/log/asterisk/messages",
+      "category": "{{sumo_envprefix}}/{{sumo_env}}/{{sumo_location}}/asterisk-{{ansible_hostname}}",
+      "hostName": "{{ansible_hostname}}",
+      "useAutolineMatching": false,
+      "multilineProcessingEnabled": true,
+      "timeZone": "UTC",
+      "automaticDateParsing": true,
+      "forceTimeZone": false,
+      "defaultDateFormat": "yyyy-MM-dd HH:mm:ss"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+---
+- action: ec2_metadata_facts
+
+- name: Copy database-asterisk-lb-insert.sql
+  template:
+    src: database-asterisk-lb-insert.sql.j2
+    dest: /opt/databases/database-asterisk-lb-insert.sql
+
+- name: Copy database-asterisk-tables.sql
+  copy:
+    src: database-asterisk-tables.sql
+    dest: /opt/databases/database-asterisk-tables.sql
+
+- name: Copy database-callplan-tables.sql
+  copy:
+    src: database-callplan-tables.sql
+    dest: /opt/databases/database-callplan-tables.sql
+
+- name: Create asterisk user
+  mysql_user:
+    name: "{{ mysql_asterisk_user }}"
+    password: "{{ mysql_asterisk_pw }}"
+    host: "%"
+    priv: '{{ mysql_asterisk_db }}.*:ALL'
+    state: present
+    login_host: "{{mysql_host}}"
+    login_password: "{{mysql_pw}}"
+    login_user: "{{mysql_user}}"
+
+- name: Import database-asterisk-tables.sql
+  mysql_db:
+    state: import
+    name: "{{mysql_asterisk_db}}"
+    target: /opt/databases/database-asterisk-tables.sql
+    login_host: "{{mysql_host}}"
+    login_user: "{{mysql_user}}"
+    login_password: "{{mysql_pw}}"
+
+
+- name: Import database-asterisk-lb-insert.sql
+  mysql_db:
+    state: import
+    name: "{{mysql_opensips_db}}"
+    target: /opt/databases/database-asterisk-lb-insert.sql
+    login_host: "{{mysql_host}}"
+    login_user: "{{mysql_user}}"
+    login_password: "{{mysql_pw}}"
+  when: not uat   
+
+- name: Create callplan user
+  mysql_user:
+    name: "{{ mysql_callplan_user }}"
+    password: "{{ mysql_callplan_pw }}"
+    host: "%"
+    priv: '{{ mysql_callplan_db }}.*:ALL'
+    state: present
+    login_host: "{{mysql_host}}"
+    login_password: "{{mysql_pw}}"
+    login_user: "{{mysql_user}}"
+
+- name: Import database-callplan-tables.sql
+  mysql_db:
+    state: import
+    name: "{{mysql_callplan_db}}"
+    target: /opt/databases/database-callplan-tables.sql
+    login_host: "{{mysql_host}}"
+    login_user: "{{mysql_user}}"
+    login_password: "{{mysql_pw}}"    

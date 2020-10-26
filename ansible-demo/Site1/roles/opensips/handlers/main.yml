@@ -1,0 +1,13 @@
+---
+# handlers file for opensips
+
+- name: restart opensips
+  service: name=opensips state=restarted
+
+- name: Load Trunk Registrants
+  shell: opensipsctl fifo reg_reload
+
+- name: Show SIP Trunk Registrants
+  shell: opensipsctl fifo reg_list 
+
+

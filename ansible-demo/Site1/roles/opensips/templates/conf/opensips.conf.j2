@@ -1,0 +1,302 @@
+###############################################################################################
+# Description:
+#
+# Opensips roles: 
+# - Load balancer for incoming calls
+# - Proxy Gateway for outbound calls 
+#
+# Created by miguel.oyarzo@null.com.au and jesus.tovar@null.com.au
+#
+###############################################################################################
+
+#set module path
+mpath="/usr/lib/x86_64-linux-gnu/opensips/modules"
+
+loadmodule "proto_udp.so"
+modparam("proto_udp", "udp_port", 5060)
+loadmodule "cfgutils.so"
+loadmodule "textops.so"
+
+####### Global Parameters #########
+
+listen=udp:0.0.0.0:5060 				# Private IP address for this instance
+include_file "eip.cfg"
+
+##### SERVER CONFIGURATION #########
+
+log_level=3
+log_stderror=no
+log_facility=LOG_LOCAL7
+event_pkg_threshold = 90
+log_name="proxy"
+server_header="Server: null SIP Proxy"
+
+debug_mode=no
+children=6
+sip_warning=no
+xlog_force_color=true
+open_files_limit=2048
+
+/* uncomment the next line to enable the auto temporary blacklisting of 
+   not available destinations (default disabled) */
+#disable_dns_blacklist=no
+
+/* uncomment the next line to enable IPv6 lookup after IPv4 dns 
+   lookup failures (default disabled) */
+#dns_try_ipv6=yes
+
+/* comment the next line to enable the auto discovery of local aliases
+   based on revers DNS on IPs */
+auto_aliases=no
+dns=no
+rev_dns=no
+
+
+####### Modules Section ########
+#### SIGNALING module
+loadmodule "signaling.so"
+
+#### StateLess module
+loadmodule "sl.so"
+
+#### Transaction Module
+loadmodule "tm.so"
+modparam("tm", "fr_timeout", 5)
+modparam("tm", "fr_inv_timeout", 30)
+modparam("tm", "restart_fr_on_each_reply", 0)
+modparam("tm", "onreply_avp_mode", 1)
+
+loadmodule "nat_traversal.so"
+
+#### Record Route Module
+loadmodule "rr.so"
+/* do not append from tag to the RR (no need for this script) */
+#modparam("rr", "append_fromtag", 0)
+
+#### MAX ForWarD module
+loadmodule "maxfwd.so"
+
+#### SIP MSG OPerationS module
+loadmodule "sipmsgops.so"
+
+#### FIFO Management Interface
+loadmodule "mi_fifo.so"
+modparam("mi_fifo", "fifo_name", "/tmp/opensips_fifo")
+modparam("mi_fifo", "fifo_mode", 0666)
+
+#### URI module
+loadmodule "uri.so"
+modparam("uri", "use_uri_table", 0)
+
+####  DIALPLAN module
+loadmodule "dialplan.so"
+modparam("dialplan", "db_url", "mysql://{{mysql_opensips_user}}:{{mysql_opensips_pw}}@{{mysql_host}}/{{mysql_opensips_db}}")
+modparam("dialplan", "partition","default:table_name=dialplan")
+
+#### MYSQL module
+loadmodule "db_mysql.so"
+db_default_url="mysql://{{mysql_opensips_user}}:{{mysql_opensips_pw}}@{{mysql_host}}/{{mysql_opensips_db}}"
+
+loadmodule "dialog.so"
+modparam("dialog", "dlg_match_mode", 1) #  DID_FALLBACK best method for now
+modparam("dialog", "default_timeout", 21600)  # 6 hours timeout
+modparam("dialog", "profile_timeout", 21600) # 6 hours timeout
+modparam("dialog", "db_mode", 1)
+modparam("dialog", "profiles_no_value", "outbound ; inbound")
+
+loadmodule "load_balancer.so"
+modparam("load_balancer", "probing_method", "OPTIONS")
+modparam("load_balancer", "probing_interval", 20)
+modparam("load_balancer", "probing_from", "sip:1234@{{ansible_ec2_local_ipv4}}") # private IP address in this instance
+modparam("load_balancer", "probing_reply_codes", "200,404")
+
+# Topology Hiding
+loadmodule "topology_hiding.so"
+
+#uac_registrant
+loadmodule "uac_auth.so"
+loadmodule "uac_registrant.so"
+modparam("uac_registrant", "hash_size", 2)
+modparam("uac_registrant", "timer_interval", 100)
+
+# -------------------------------------------------------------
+
+####### Routing Logic ########
+
+route{
+	if (!mf_process_maxfwd_header("10")) {
+                sl_send_reply("483","Too Many Hops");
+                exit;
+        }
+
+        # We are no interested in route OPTIONS messages
+        if(is_method("OPTIONS")) {
+            # send reply for each options request
+            sl_send_reply("200", "OK");
+            exit();
+         }
+    if (has_totag()) {
+
+	if (is_myself("$rd")) {  
+	#####  OUTBOUND CALL TO SBC ######################
+		# xlog("In dialog. Outbound\n");
+		if (topology_hiding_match()) {
+			#xlog("Succesfully matched this request to a topology hiding dialog. \n");
+                                if (is_method("BYE")) {
+                                        xlog("$ci: BYE received from $fU");
+                                }
+			t_relay();
+			exit;
+		} else {
+			#xlog(" cannot match request to a dialog - topology hiding \n");
+			send_reply("404","Not found");
+		}
+
+	} else { 
+	#####  INBOUND CALL TO ASTERISK ######################
+					#xlog("In dialog. Inbound\n");
+	                if (loose_route()) {
+	                        fix_route_dialog();
+	                        if (is_method("BYE")) {
+	                                xlog("$ci: BYE received from $tU");
+	                        }
+	                        t_relay();
+	                        exit;
+	                } else {
+	                        if ( is_method("ACK") ) {
+	                                if ( t_check_trans() ) {
+	                                        # non loose-route, but stateful ACK; must be an ACK after 
+	                                        # a 487 or e.g. 404 from upstream server
+	                                        #xlog(">>> ACK RECEIVED - _check_trans() = true");
+	                                        t_relay();
+	                                        exit;
+	                                } else {
+	                                        # ACK without matching transaction ->
+	                                        # ignore and discard
+        	                                exit;
+	                                }
+	                        }
+	                        sl_send_reply("404","Not here");
+	                }
+	                exit;
+                    }
+	}
+
+#### INITIAL REQUESTS ##########################3
+
+	# CANCEL processing
+	if (is_method("CANCEL")) {
+		if (t_check_trans())
+			t_relay();
+		exit;
+	} else if (!is_method("INVITE")) {
+		send_reply("405","Method Not Allowed");
+		exit;
+	}
+
+	if ($rU==NULL) {
+		# request with no Username in RURI
+		sl_send_reply("484","Address Incomplete");
+		exit;
+	}
+
+	# preloaded route checking
+	if (loose_route()) {
+		xlog("L_ERR",
+		"Attempt to route with preloaded Route's [$fu/$tu/$ru/$ci]");
+		if (!is_method("ACK"))
+			sl_send_reply("403","Preload Route denied");
+		exit;
+	}
+
+	########  SIP ROUTING DECISION ========================================================================================
+
+	record_route(); 				# We add a route header with our EIP
+
+	if (!is_myself("$rd")) {
+		# OUTBOUND CALL
+		fix_contact();
+		create_dialog(); 			# dialog is required
+		t_on_reply("outbound_reply");
+		t_on_branch("outbound");
+		topology_hiding();
+	} else {
+		# INBOUND CALL
+		t_on_reply("inbound_reply");
+		t_on_branch("inbound");
+
+        $var(routing_flag)="none";
+		dp_translate("1","$rU/$rU","$var(routing_flag)");
+        xlog("$rU: Route attr $var(routing_flag)"); 
+		if($var(routing_flag)=="uat_environment")
+		{
+			if (!load_balance("2","channels")) 
+			{
+				xlog("$ci: No Destination available");
+				send_reply("500","No Destination available");
+				exit;
+			}
+		}
+		else
+		{
+			if (!load_balance("1","channels")) 
+			{
+				xlog("$ci: No Destination available");
+				send_reply("500","No Destination available");
+				exit;
+			}
+		}
+		xlog("$ci: Selected destination is: $du");
+	}
+
+	if (!t_relay()) {
+		sl_reply_error();
+	}
+}
+
+branch_route[inbound] {
+	if (!is_in_profile("inbound")) {
+		set_dlg_profile("inbound");
+	}
+        xlog("$ci: INBOUND call from $fU -> $tU ($oP) via $si:$sp");
+
+        # Add below SBC IP addresses and its associated country code
+        switch($si)
+        {
+            case "34.218.157.37": # SIPP
+                append_hf("COUNTRYCODE: {{country_iso_code}}\r\n", "Call-ID");
+                break;
+            case "125.213.162.142":  # Symbio
+                append_hf("COUNTRYCODE: {{country_iso_code}}\r\n", "Call-ID");
+                break;
+            default:
+                append_hf("COUNTRYCODE: {{country_iso_code}}\r\n", "Call-ID");
+                log("$si was not detected\n");
+       }
+}
+
+branch_route[outbound] {
+	if (!is_in_profile("outbound")) {
+		set_dlg_profile("outbound");
+	}
+                xlog("$ci: OUTBOUND call from $fU to $tU");
+                append_hf("P-hint: outbound\r\n"); 
+}
+
+onreply_route[inbound_reply] {
+        if (t_check_status("200")) {
+                xlog("$ci: Sending '200 OK' to $fU from si:$si"); 
+		fix_contact();
+                get_profile_size("inbound","$avp(size)");
+                xlog("INBOUND channels in use: $avp(size)\n");
+        }
+}
+
+onreply_route[outbound_reply] {
+        if (t_check_status("200")) {
+                xlog("$ci: $tU has accepted the call from $fU!"); 
+                fix_contact();
+                get_profile_size("outbound","$avp(size)");
+                xlog("OUTBOUND channels in use: $avp(size)\n");
+        }
+}

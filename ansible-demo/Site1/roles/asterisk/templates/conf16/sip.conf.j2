@@ -1,0 +1,91 @@
+[general]
+#include "eip.conf"
+localnet=10.0.0.0/255.255.255.0
+context=project		 
+allowoverlap=no                  
+udpbindaddr=0.0.0.0              
+tcpenable=no                     
+tcpbindaddr=0.0.0.0              
+srvlookup=no                    
+sipdebug=no			
+nat=force_rport,comedia
+dumphistory=no
+sdpsession=null Media Server 1.0.0 
+useragent=null Media Server 1.0.0
+disallow=all
+allow=alaw
+allow=ulaw
+allow=gsm
+allow=g729
+
+[webrtc](!)
+  transport=udp
+  nat=force_rport,comedia
+  canreinvite=yes
+  insecure=invite
+  dtmfmode=rfc2833
+  avpf=yes
+  encryption=no
+  force_avp=yes
+  dtlsenable=yes
+  dtlsverify=no
+  dtlscertfile=/etc/asterisk/keys/asterisk.pem
+  dtlssetup=actpass
+  rtcp_mux=yes
+  qualify=yes
+  icesupport=yes
+  directmedia=no
+  disallow=all
+  allow=ulaw
+
+[webrtc-opensips1](webrtc)
+  type=peer
+  host={{opensips_webrtc_1}}
+  port=5060
+
+;[webrtc-opensips2](webrtc)
+;  type=peer
+;  host={{opensips_webrtc_2}}
+;  port=5060  
+
+[trunk](!)
+  type=peer
+  context=project
+  transport=udp
+  qualify=yes
+  qualifyfreq=5
+  amaflags=billing
+  canreinvite=yes
+  insecure=invite
+  dtmfmode=rfc2833
+  disallow=all
+  allow=alaw
+  allow=ulaw
+  allow=gsm
+  allow=g729
+
+[{{default_provider}}](trunk)
+  host={{providers[default_provider]['sbc_ip']}}
+  outboundproxy={{opensips}}
+
+[{{default_provider}}2](trunk)
+  host={{providers[default_provider]['sbc_ip']}}
+  outboundproxy={{opensips2}}
+
+[echotest](trunk)
+  host=54.203.209.14
+  outboundproxy=opensips1.project.global
+  canreinvite=yes
+  directrtpsetup=no
+  sendrpid=pai
+  trustrpid=no
+
+[loadtest](trunk)
+  host=13.54.56.17
+  outboundproxy=opensips1.project.global
+  canreinvite=yes
+  directrtpsetup=no
+  sendrpid=pai
+  trustrpid=no
+  
+

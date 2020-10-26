@@ -1,0 +1,72 @@
+- action: ec2_metadata_facts
+- name: Add an apt key by id from a keyserver
+  apt_key:
+    keyserver: keyserver.ubuntu.com
+    id: 049AD65B
+
+- apt_repository:
+    repo: deb http://apt.opensips.org xenial 2.4-releases
+    state: present
+    filename: 'opensips.list'
+
+
+- name: install opensips=2.4.7-1
+  apt: name=opensips=2.4.7-1
+
+- name: install opensips-mysql-module
+  apt: name=opensips-mysql-module
+
+- name: install opensips-dialplan-module
+  apt: name=opensips-dialplan-module
+
+# Config files
+- name: Copy opensips.cfg to /etc/opensips/opensips.conf
+  template:
+    src: conf/opensips.cfg.j2
+    dest: /etc/opensips/opensips.cfg
+  notify:
+    - restart opensips
+
+- name: Copy eip.cfg to /etc/opensips/eip.cfg
+  template:
+    src: conf/eip.cfg.j2
+    dest: /etc/opensips/eip.cfg
+  notify:
+    - restart opensips
+
+
+- name: Copy opensipsctlrc to /etc/opensips/opensipsctlrc
+  template:
+     src: opensipsctlrc.j2
+     dest: /etc/opensips/opensipsctlrc
+
+
+#- name: ensure OpenSIPs is running
+#  service: name=opensips state=started
+#- service:
+#    name: opensips
+#    state: restarted
+
+- name: restart opensips
+  action: service name=opensips state=started
+
+
+- name:  create remote user
+  user:
+    name: remote
+    comment: "Linux account to accept remote commands (check sudoers)"
+    uid: 1040
+    shell: /bin/bash
+
+- name: Set authorized key for 'remote' took from file
+  authorized_key:
+    user: remote
+    state: present
+    key: "{{ lookup('file', 'roles/asterisk/files/id_rsa.pub') }}"
+
+# Sudoers
+- name: set /etc/sudoers.d/20-remote
+  copy:
+     content: "remote ALL=NOPASSWD: /usr/sbin/opensipsctl\n"
+     dest: /etc/sudoers.d/20-remote
+     mode: 0440

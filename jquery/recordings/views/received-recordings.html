@@ -1,0 +1,48 @@
+<div class="received-recordings-container empty">
+	<div class="monster-table-wrapper-spaced">
+		<div class="action-bar monster-table-header">
+			<div class="filter-by-date">
+				<div class="expand-dates">
+					<a class="monster-link blue toggle-filter">{{ i18n.recordings.receivedRecs.filterByDate }}</a>
+					<a id="refresh_voicemails" class="monster-link pull-left" href="javascript:void(0);" data-toggle="tooltip" data-placement="top" data-original-title="{{ i18n.recordings.receivedRecs.actionBar.tooltips.refresh }}"><i class="fa fa-refresh"></i></a>
+				</div>
+				<div class="date-ranges">
+					<span>{{i18n.startDate}}</span>
+					<input id="startDate" type="text" class="date-filter filter-from">
+					<i class="fa fa-calendar"></i>
+					<span>{{i18n.endDate}}</span>
+					<input id="endDate" type="text" class="date-filter filter-to">
+					<i class="fa fa-calendar"></i>
+					<button type="button" class="apply-filter monster-button-neutral monster-button-fit">{{i18n.filter}}</button>
+					<a class="monster-link blue toggle-filter">{{i18n.cancel}}</a>
+				</div>
+			</div>
+		</div>
+
+		<div class="content">
+			<div class="data-state">
+				<div class="recordings-table">
+					<table class="monster-table footable" id="voicemails_table">
+						<thead>
+							<tr>
+								<th class="select-cell" data-type="html" data-sortable="false"></th>
+								<th data-type="html" data-sorted="true" data-direction="DESC">{{ i18n.recordings.receivedRecs.table.columns.received }}</th>
+								<th data-type="html">{{ i18n.recordings.receivedRecs.table.columns.direction }}</th>
+								<th data-type="html">{{ i18n.recordings.receivedRecs.table.columns.from }}</th>
+								<th data-type="html">{{ i18n.recordings.receivedRecs.table.columns.targetNumber }}</th>
+								<th data-breakpoints="xs">{{ i18n.recordings.receivedRecs.table.columns.duration }}</th>
+								<th data-filterable="false" data-type="html" data-sortable="false"></th>
+							</tr>
+						</thead>
+						<tbody>
+
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div class="loading-state">
+				<i class="fa fa-spin fa-spinner monster-primary-color"></i>
+			</div>
+		</div>
+	</div>
+</div>

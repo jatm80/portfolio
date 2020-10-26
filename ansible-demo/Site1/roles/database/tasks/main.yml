@@ -1,0 +1,8 @@
+---
+
+- include_tasks: opensips.yml
+  when: inventory_hostname in groups['opensips']
+
+
+- include_tasks: asterisk.yml
+  when: inventory_hostname in groups['asterisk']
